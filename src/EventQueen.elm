@@ -6,10 +6,15 @@
 module EventQueen exposing (main)
 
 import Browser
-import Html
+import Browser.Events
+import Element exposing (Element)
+import Element.Events as Events
+import Html exposing (Html)
+import Html.Events as HE
+import Json.Decode as Decode exposing (Decoder)
 
 
-main : Program Flags Model Never
+main : Program Flags Model Msg
 main =
     Browser.document
         { init = init
@@ -24,31 +29,126 @@ type alias Flags =
 
 
 type alias Model =
-    { nodeID : NodeID }
+    { nodeID : NodeID
+    , offset : ( Float, Float )
+    , dragState : DragState
+    }
+
+
+type Msg
+    = NoOp
+    | StartBoardDrag
+    | DragBoard ( Float, Float )
+    | StopDrag
 
 
 type NodeID
     = NodeID String
 
 
+type DragState
+    = NotDragging
+    | DraggingBoard
+
+
+init : Flags -> ( Model, Cmd Msg )
 init { rawNodeID } =
-    ( Model <| NodeID rawNodeID
+    ( { nodeID = NodeID rawNodeID
+      , offset = ( 0, 0 )
+      , dragState = NotDragging
+      }
     , Cmd.none
     )
 
 
-view _ =
+view : Model -> Browser.Document Msg
+view model =
     { title = "Event Queen"
-    , body = [ Html.text "event queen" ]
+    , body =
+        Element.text "event queen"
+            |> onBoard model
     }
 
 
-update : Never -> Model -> ( Model, Cmd Never )
-update _ model =
-    ( model
-    , Cmd.none
-    )
+onBoard : { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
+onBoard ({ offset } as model) =
+    let
+        ( dx, dy ) =
+            offset
+    in
+    List.singleton
+        << Element.layout
+            [ Element.width Element.fill
+            , Element.height Element.fill
+            , Events.onMouseDown StartBoardDrag
+            , Events.onMouseUp StopDrag
+            ]
+        << Element.el
+            [ Element.moveDown dy
+            , Element.moveRight dx
+            ]
 
 
-subscriptions _ =
-    Sub.none
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
+        StopDrag ->
+            ( { model | dragState = NotDragging }
+            , Cmd.none
+            )
+
+        StartBoardDrag ->
+            ( { model | dragState = DraggingBoard }
+            , Cmd.none
+            )
+
+        DragBoard ( dx, dy ) ->
+            let
+                ( x, y ) =
+                    model.offset
+            in
+            ( { model | offset = ( x + dx, y + dy ) }
+            , Cmd.none
+            )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model.dragState of
+        DraggingBoard ->
+            drags DragBoard
+
+        _ ->
+            Sub.none
+
+
+onMouseDownAt : (( Float, Float ) -> msg) -> Element.Attribute msg
+onMouseDownAt toMsg =
+    mouseAt
+        |> Decode.map toMsg
+        |> HE.on "mousedown"
+        |> Element.htmlAttribute
+
+
+drags : (( Float, Float ) -> msg) -> Sub msg
+drags toMsg =
+    mouseMoved
+        |> Decode.map toMsg
+        |> Browser.Events.onMouseMove
+
+
+mouseMoved : Decoder ( Float, Float )
+mouseMoved =
+    Decode.map2 Tuple.pair
+        (Decode.field "movementX" Decode.float)
+        (Decode.field "movementY" Decode.float)
+
+
+mouseAt : Decoder ( Float, Float )
+mouseAt =
+    Decode.map2 Tuple.pair
+        (Decode.field "screenX" Decode.float)
+        (Decode.field "screenY" Decode.float)
