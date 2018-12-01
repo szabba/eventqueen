@@ -37,7 +37,7 @@ type alias Model =
     , offset : ( Float, Float )
     , dragState : DragState
     , notes : Dict Int Note
-    , nextNoteID : Int
+    , contextMenu : ContextMenu
     }
 
 
@@ -48,6 +48,7 @@ type Msg
     | StartNoteDrag Int
     | DragNote Int ( Float, Float )
     | StopDrag
+    | OpenMenu ContextMenu
 
 
 type NodeID
@@ -60,10 +61,20 @@ type DragState
     | DraggingNote Int
 
 
+type ContextMenu
+    = NoMenu
+    | BoardMenu ( Float, Float )
+    | CardMenu Int ( Float, Float )
+
+
 type alias Note =
     { offset : ( Float, Float )
     , text : String
     }
+
+
+type alias ViewConfig msg =
+    { onContextMenu : (( Float, Float ) -> msg) -> Element.Attribute msg }
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -77,7 +88,7 @@ init { rawNodeID } =
                 , Tuple.pair 1 { offset = ( 50, 200 ), text = "Marched" }
                 , Tuple.pair 2 { offset = ( 200, 50 ), text = "Forevered" }
                 ]
-      , nextNoteID = 0
+      , contextMenu = NoMenu
       }
     , Cmd.none
     )
@@ -85,19 +96,63 @@ init { rawNodeID } =
 
 view : Model -> Browser.Document Msg
 view model =
+    let
+        viewConfig =
+            model |> viewConfigOf
+
+        floats =
+            [ model.notes |> viewNotes viewConfig
+            , model.contextMenu
+                |> viewContextMenu
+                |> List.singleton
+            ]
+                |> List.concat
+                |> List.map Element.inFront
+    in
     { title = "Event Queen"
     , body =
-        onBoard model <| Element.el (List.map Element.inFront <| viewNotes model.notes) Element.none
+        onBoard viewConfig model <| Element.el floats Element.none
     }
 
 
-viewNotes : Dict Int Note -> List (Element Msg)
-viewNotes =
-    Dict.toList >> List.map viewNote
+viewConfigOf : Model -> ViewConfig Msg
+viewConfigOf { offset } =
+    let
+        ( offX, offY ) =
+            offset
+
+        fixOffset ( x, y ) =
+            ( x - offX, y - offY )
+    in
+    { onContextMenu = \toMsg -> (fixOffset >> toMsg) |> onContextMenu }
 
 
-viewNote : ( Int, Note ) -> Element Msg
-viewNote ( noteID, { offset, text } ) =
+viewNotes : ViewConfig Msg -> Dict Int Note -> List (Element Msg)
+viewNotes config notes =
+    notes
+        |> Dict.toList
+        |> List.map (viewNote config)
+
+
+viewContextMenu : ContextMenu -> Element Msg
+viewContextMenu menu =
+    case menu of
+        NoMenu ->
+            Element.none
+
+        BoardMenu offset ->
+            boardMenu
+                |> viewMenu
+                |> withOffset offset
+
+        CardMenu noteID offset ->
+            cardMenu noteID
+                |> viewMenu
+                |> withOffset offset
+
+
+viewNote : ViewConfig Msg -> ( Int, Note ) -> Element Msg
+viewNote config ( noteID, { offset, text } ) =
     withOffset offset <|
         Element.el
             [ Border.color noteBorder
@@ -107,30 +162,71 @@ viewNote ( noteID, { offset, text } ) =
             , Element.width (Element.px 200)
             , Element.height (Element.px 200)
             , onMouseDownNoPropagation (StartNoteDrag noteID)
+            , config.onContextMenu (OpenMenu << CardMenu noteID)
             , Element.htmlAttribute <| HA.style "user-select" "none"
             , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
             , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
             , Element.htmlAttribute <| HA.style "-ms-user-select" "none"
             ]
         <|
-            Element.paragraph []
+            Element.paragraph [ Element.height Element.fill ]
                 [ Element.text text
                 ]
 
 
-onBoard : { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
-onBoard ({ offset } as model) =
+boardMenu : List ( String, Msg )
+boardMenu =
+    [ "New card"
+    , "Fit all"
+    ]
+        |> List.map (\name -> ( name, NoOp ))
+
+
+cardMenu : Int -> List ( String, Msg )
+cardMenu noteID =
+    [ "Edit"
+    , "Remove"
+    ]
+        |> List.map (\name -> ( name, NoOp ))
+
+
+viewMenu : List ( String, msg ) -> Element msg
+viewMenu rows =
+    rows
+        |> List.map viewMenuRow
+        |> Element.column
+            [ Border.width 1
+            , Border.color noteBorder
+            , Background.color board
+            , Element.padding 15
+            , Element.spacing 15
+            ]
+
+
+viewMenuRow : ( String, msg ) -> Element msg
+viewMenuRow ( name, msg ) =
+    Element.row
+        [ Element.width Element.fill
+        , Events.onClick msg
+        ]
+        [ Element.text name ]
+
+
+onBoard : ViewConfig Msg -> { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
+onBoard config ({ offset } as model) =
     let
         ( dx, dy ) =
             offset
     in
     List.singleton
         << Element.layout
-            [ Element.width Element.fill
+            [ Element.clip
+            , Element.width Element.fill
             , Element.height Element.fill
             , Events.onMouseDown StartBoardDrag
             , Events.onMouseUp StopDrag
             , Background.color board
+            , config.onContextMenu (OpenMenu << BoardMenu)
             ]
         << withOffset offset
 
@@ -170,7 +266,7 @@ update msg model =
             )
 
         StartBoardDrag ->
-            ( { model | dragState = DraggingBoard }
+            ( { model | dragState = DraggingBoard, contextMenu = NoMenu }
             , Cmd.none
             )
 
@@ -184,12 +280,18 @@ update msg model =
             )
 
         StartNoteDrag noteID ->
-            ( { model | dragState = DraggingNote noteID }
+            ( { model | dragState = DraggingNote noteID, contextMenu = NoMenu }
             , Cmd.none
             )
 
         DragNote noteID offsetDelta ->
             ( { model | notes = model.notes |> Dict.update noteID (Maybe.map <| updateOffsetBy offsetDelta) }
+            , Cmd.none
+            )
+
+        -- TODO: This should come in board-relative coordinates
+        OpenMenu newMenu ->
+            ( { model | contextMenu = newMenu }
             , Cmd.none
             )
 
@@ -216,9 +318,33 @@ subscriptions model =
             Sub.none
 
 
+onContextMenu : (( Float, Float ) -> msg) -> Element.Attribute msg
+onContextMenu toMsg =
+    mouseAt
+        |> Decode.map
+            (\at ->
+                { message = at |> toMsg
+                , preventDefault = True
+                , stopPropagation = True
+                }
+            )
+        |> HE.custom "contextmenu"
+        |> Element.htmlAttribute
+
+
+clientToBoard : { boardOffset : ( Float, Float ), pos : ( Float, Float ) } -> ( Float, Float )
+clientToBoard { boardOffset, pos } =
+    let
+        ( ( offX, offY ), ( posX, posY ) ) =
+            ( boardOffset, pos )
+    in
+    ( posX - offX, posY - offY )
+
+
 onMouseDownNoPropagation : msg -> Element.Attribute msg
 onMouseDownNoPropagation msg =
-    Decode.succeed ( msg, True )
+    ( msg, True )
+        |> Decode.succeed
         |> HE.stopPropagationOn "mousedown"
         |> Element.htmlAttribute
 
@@ -240,5 +366,5 @@ mouseMoved =
 mouseAt : Decoder ( Float, Float )
 mouseAt =
     Decode.map2 Tuple.pair
-        (Decode.field "screenX" Decode.float)
-        (Decode.field "screenY" Decode.float)
+        (Decode.field "clientX" Decode.float)
+        (Decode.field "clientY" Decode.float)
