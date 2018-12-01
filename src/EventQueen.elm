@@ -13,6 +13,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Events as Events
 import Html exposing (Html)
+import Html.Attributes as HA
 import Html.Events as HE
 import Json.Decode as Decode exposing (Decoder)
 
@@ -106,6 +107,10 @@ viewNote ( noteID, { offset, text } ) =
             , Element.width (Element.px 200)
             , Element.height (Element.px 200)
             , onMouseDownNoPropagation (StartNoteDrag noteID)
+            , Element.htmlAttribute <| HA.style "user-select" "none"
+            , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
+            , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
+            , Element.htmlAttribute <| HA.style "-ms-user-select" "none"
             ]
         <|
             Element.paragraph []
