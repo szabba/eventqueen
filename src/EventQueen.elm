@@ -73,8 +73,9 @@ type alias Note =
     }
 
 
-type alias ViewConfig msg =
-    { onContextMenu : (( Float, Float ) -> msg) -> Element.Attribute msg }
+type alias ViewConfig =
+    { clientToBoard : ( Float, Float ) -> ( Float, Float )
+    }
 
 
 init : Flags -> ( Model, Cmd Msg )
@@ -115,19 +116,20 @@ view model =
     }
 
 
-viewConfigOf : Model -> ViewConfig Msg
+viewConfigOf : Model -> ViewConfig
 viewConfigOf { offset } =
     let
         ( offX, offY ) =
             offset
 
-        fixOffset ( x, y ) =
+        clientToBoard ( x, y ) =
             ( x - offX, y - offY )
     in
-    { onContextMenu = \toMsg -> (fixOffset >> toMsg) |> onContextMenu }
+    { clientToBoard = clientToBoard
+    }
 
 
-viewNotes : ViewConfig Msg -> Dict Int Note -> List (Element Msg)
+viewNotes : ViewConfig -> Dict Int Note -> List (Element Msg)
 viewNotes config notes =
     notes
         |> Dict.toList
@@ -151,7 +153,7 @@ viewContextMenu menu =
                 |> withOffset offset
 
 
-viewNote : ViewConfig Msg -> ( Int, Note ) -> Element Msg
+viewNote : ViewConfig -> ( Int, Note ) -> Element Msg
 viewNote config ( noteID, { offset, text } ) =
     withOffset offset <|
         Element.el
@@ -162,7 +164,7 @@ viewNote config ( noteID, { offset, text } ) =
             , Element.width (Element.px 200)
             , Element.height (Element.px 200)
             , onMouseDownNoPropagation (StartNoteDrag noteID)
-            , config.onContextMenu (OpenMenu << CardMenu noteID)
+            , onContextMenu (config.clientToBoard >> CardMenu noteID >> OpenMenu)
             , Element.htmlAttribute <| HA.style "user-select" "none"
             , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
             , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
@@ -212,7 +214,7 @@ viewMenuRow ( name, msg ) =
         [ Element.text name ]
 
 
-onBoard : ViewConfig Msg -> { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
+onBoard : ViewConfig -> { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
 onBoard config ({ offset } as model) =
     let
         ( dx, dy ) =
@@ -226,7 +228,7 @@ onBoard config ({ offset } as model) =
             , Events.onMouseDown StartBoardDrag
             , Events.onMouseUp StopDrag
             , Background.color board
-            , config.onContextMenu (OpenMenu << BoardMenu)
+            , onContextMenu (config.clientToBoard >> BoardMenu >> OpenMenu)
             ]
         << withOffset offset
 
@@ -289,7 +291,6 @@ update msg model =
             , Cmd.none
             )
 
-        -- TODO: This should come in board-relative coordinates
         OpenMenu newMenu ->
             ( { model | contextMenu = newMenu }
             , Cmd.none
@@ -330,15 +331,6 @@ onContextMenu toMsg =
             )
         |> HE.custom "contextmenu"
         |> Element.htmlAttribute
-
-
-clientToBoard : { boardOffset : ( Float, Float ), pos : ( Float, Float ) } -> ( Float, Float )
-clientToBoard { boardOffset, pos } =
-    let
-        ( ( offX, offY ), ( posX, posY ) ) =
-            ( boardOffset, pos )
-    in
-    ( posX - offX, posY - offY )
 
 
 onMouseDownNoPropagation : msg -> Element.Attribute msg
