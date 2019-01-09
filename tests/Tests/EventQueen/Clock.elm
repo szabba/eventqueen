@@ -20,7 +20,7 @@ suite =
                 Clock.zero
                     |> Clock.ticksOf { node = nodeName }
                     |> Expect.equal 0
-        , fuzz (Fuzz.intRange 0 10) "the tick count of a node is the time the clock was ticked with it's name" <|
+        , fuzz (Fuzz.intRange 0 3) "the tick count of a node is the time the clock was ticked with it's name" <|
             \times ->
                 Clock.zero
                     |> repeat times (Clock.tick { node = "node" })
@@ -32,13 +32,32 @@ suite =
                     |> Clock.tick { node = "one" }
                     |> Clock.ticksOf { node = "another" }
                     |> Expect.equal 0
-        , fuzz (randomClock { size = 10 }) "only has non-negative ticks" <|
+        , fuzz (randomClock { size = 3 }) "only has non-negative ticks" <|
             \clock ->
                 clock
                     |> Clock.toDict
                     |> Dict.filter (\_ v -> v < 0)
                     |> Expect.equal Dict.empty
                     |> Expect.onFail "clock has negative ticks for some keys"
+        , fuzz (randomClock { size = 3 }) "is simultaneous with itself" <|
+            \clock ->
+                Clock.compare ( clock, clock )
+                    |> Expect.equal Clock.Simultaneous
+        , fuzz (randomClock { size = 3 }) "is chronological with a clock with extra ticks" <|
+            \clock ->
+                Clock.compare ( clock, clock |> Clock.tick { node = "1" } )
+                    |> Expect.equal Clock.Chronological
+        , fuzz (randomClock { size = 3 }) "is reverse chronological with a clock with less ticks" <|
+            \clock ->
+                Clock.compare ( clock |> Clock.tick { node = "1" }, clock )
+                    |> Expect.equal Clock.ReverseChronological
+        , fuzz (randomClock { size = 3 }) "two clocks with extra ticks for different nodes are concurrent" <|
+            \clock ->
+                Clock.compare
+                    ( clock |> Clock.tick { node = "1" }
+                    , clock |> Clock.tick { node = "2" }
+                    )
+                    |> Expect.equal Clock.Concurrent
         ]
 
 
