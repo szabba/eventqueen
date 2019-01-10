@@ -34,9 +34,14 @@ type alias Flags =
 
 type alias Model =
     { nodeID : NodeID
-    , offset : ( Float, Float )
-    , dragState : DragState
+    , viewModel : ViewModel
     , notes : Dict Int Note
+    }
+
+
+type alias ViewModel =
+    { offset : ( Float, Float )
+    , dragState : DragState
     , contextMenu : ContextMenu
     }
 
@@ -81,15 +86,17 @@ type alias ViewConfig =
 init : Flags -> ( Model, Cmd Msg )
 init { rawNodeID } =
     ( { nodeID = NodeID rawNodeID
-      , offset = ( 0, 0 )
-      , dragState = NotDragging
+      , viewModel =
+            { offset = ( 0, 0 )
+            , dragState = NotDragging
+            , contextMenu = NoMenu
+            }
       , notes =
             Dict.fromList
                 [ Tuple.pair 0 { offset = ( 0, 0 ), text = "Liberated" }
                 , Tuple.pair 1 { offset = ( 50, 200 ), text = "Marched" }
                 , Tuple.pair 2 { offset = ( 200, 50 ), text = "Forevered" }
                 ]
-      , contextMenu = NoMenu
       }
     , Cmd.none
     )
@@ -103,7 +110,7 @@ view model =
 
         floats =
             [ model.notes |> viewNotes viewConfig
-            , model.contextMenu
+            , model.viewModel.contextMenu
                 |> viewContextMenu
                 |> List.singleton
             ]
@@ -112,15 +119,15 @@ view model =
     in
     { title = "Event Queen"
     , body =
-        onBoard viewConfig model <| Element.el floats Element.none
+        onBoard viewConfig model.viewModel <| Element.el floats Element.none
     }
 
 
 viewConfigOf : Model -> ViewConfig
-viewConfigOf { offset } =
+viewConfigOf { viewModel } =
     let
         ( offX, offY ) =
-            offset
+            viewModel.offset
 
         clientToBoard ( x, y ) =
             ( x - offX, y - offY )
@@ -214,8 +221,8 @@ viewMenuRow ( name, msg ) =
         [ Element.text name ]
 
 
-onBoard : ViewConfig -> { a | offset : ( Float, Float ) } -> Element Msg -> List (Html Msg)
-onBoard config ({ offset } as model) =
+onBoard : ViewConfig -> ViewModel -> Element Msg -> List (Html Msg)
+onBoard config ({ offset } as viewModel) =
     let
         ( dx, dy ) =
             offset
@@ -257,44 +264,53 @@ board =
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update msg ({ viewModel } as model) =
     case msg of
         NoOp ->
-            ( model, Cmd.none )
+            model |> noCmd
 
         StopDrag ->
-            ( { model | dragState = NotDragging }
-            , Cmd.none
-            )
+            model
+                |> setViewModel { viewModel | dragState = NotDragging }
+                |> noCmd
 
         StartBoardDrag ->
-            ( { model | dragState = DraggingBoard, contextMenu = NoMenu }
-            , Cmd.none
-            )
+            model
+                |> setViewModel { viewModel | dragState = DraggingBoard, contextMenu = NoMenu }
+                |> noCmd
 
         DragBoard ( dx, dy ) ->
             let
                 ( x, y ) =
-                    model.offset
+                    viewModel.offset
             in
-            ( { model | offset = ( x + dx, y + dy ) }
-            , Cmd.none
-            )
+            model
+                |> setViewModel { viewModel | offset = ( x + dx, y + dy ) }
+                |> noCmd
 
         StartNoteDrag noteID ->
-            ( { model | dragState = DraggingNote noteID, contextMenu = NoMenu }
-            , Cmd.none
-            )
+            model
+                |> setViewModel { viewModel | dragState = DraggingNote noteID, contextMenu = NoMenu }
+                |> noCmd
 
         DragNote noteID offsetDelta ->
-            ( { model | notes = model.notes |> Dict.update noteID (Maybe.map <| updateOffsetBy offsetDelta) }
-            , Cmd.none
-            )
+            { model | notes = model.notes |> Dict.update noteID (Maybe.map <| updateOffsetBy offsetDelta) }
+                |> noCmd
 
         OpenMenu newMenu ->
-            ( { model | contextMenu = newMenu }
-            , Cmd.none
-            )
+            model
+                |> setViewModel { viewModel | contextMenu = newMenu }
+                |> noCmd
+
+
+setViewModel : ViewModel -> Model -> Model
+setViewModel viewModel model =
+    { model | viewModel = viewModel }
+
+
+noCmd : Model -> ( Model, Cmd Msg )
+noCmd model =
+    ( model, Cmd.none )
 
 
 updateOffsetBy : ( Float, Float ) -> Note -> Note
@@ -307,8 +323,8 @@ updateOffsetBy ( dx, dy ) ({ offset } as note) =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
-    case model.dragState of
+subscriptions { viewModel } =
+    case viewModel.dragState of
         DraggingBoard ->
             drags DragBoard
 
