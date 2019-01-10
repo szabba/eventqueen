@@ -75,16 +75,12 @@ fixOrdering compareWith =
 
 compareEntries : (a -> a -> Order) -> Entry a -> Entry a -> Order
 compareEntries compareWith left right =
-    let
-        clockOrder =
-            Clock.compareTotal left.clock right.clock
-    in
-    case clockOrder of
+    case Clock.compareTotal left.clock right.clock of
         EQ ->
             compareWith left.value right.value
 
-        _ ->
-            clockOrder
+        order ->
+            order
 
 
 isOlderThan : Clock -> Entry a -> Bool
