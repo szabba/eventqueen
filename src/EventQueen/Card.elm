@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Card exposing (Card, Diff, config, getPosition, moveBy, setPosition, setText)
+module EventQueen.Card exposing (Card, Diff, config, getPosition, getText, moveBy, setPosition, setText)
 
 import EventQueen.Clock exposing (Clock)
 import EventQueen.MultivalueRegister as MVR exposing (MVR)
@@ -33,6 +33,15 @@ init =
     { text = MVR.init
     , position = MVR.init
     }
+
+
+getText : Card -> String
+getText card =
+    card.text
+        |> MVR.get
+        |> List.reverse
+        |> List.head
+        |> Maybe.withDefault ""
 
 
 setText : String -> { name : String } -> Clock -> Card -> Diff

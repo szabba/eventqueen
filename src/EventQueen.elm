@@ -12,6 +12,7 @@ import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events as Events
+import Element.Input as Input
 import EventQueen.Card as Card exposing (Card)
 import EventQueen.MultivalueRegister as MVR
 import EventQueen.Node as Node exposing (Node)
@@ -45,6 +46,7 @@ type alias Model =
 type alias ViewModel =
     { offset : ( Float, Float )
     , dragState : DragState
+    , editState : EditState
     , contextMenu : ContextMenu
     }
 
@@ -69,6 +71,11 @@ type DragState
     | DraggingCard Int
 
 
+type EditState
+    = NotEditing
+    | EditingCard Int String
+
+
 type ContextMenu
     = NoMenu
     | BoardMenu ( Float, Float )
@@ -83,6 +90,7 @@ type alias Note =
 
 type alias ViewConfig =
     { clientToBoard : ( Float, Float ) -> ( Float, Float )
+    , editState : EditState
     }
 
 
@@ -92,6 +100,7 @@ init { rawNodeID } =
       , viewModel =
             { offset = ( 0, 0 )
             , dragState = NotDragging
+            , editState = EditingCard 0 "..."
             , contextMenu = NoMenu
             }
       , node = Node.init Card.config { name = "node" }
@@ -131,6 +140,7 @@ viewConfigOf { viewModel } =
             ( x - offX, y - offY )
     in
     { clientToBoard = clientToBoard
+    , editState = viewModel.editState
     }
 
 
@@ -159,39 +169,59 @@ viewContextMenu menu =
 
 
 viewCard : ViewConfig -> ( Int, Card ) -> Element Msg
-viewCard config ( noteID, card ) =
-    let
-        offset =
-            card.position
-                |> MVR.get
-                |> List.head
-                |> Maybe.withDefault ( 0, 0 )
-
-        text =
-            card.text
-                |> MVR.get
-                |> List.head
-                |> Maybe.withDefault "..."
-    in
-    withOffset offset <|
+viewCard config (( noteID, card ) as cardWithID) =
+    withOffset (Card.getPosition card) <|
         Element.el
-            [ Border.color noteBorder
-            , Border.width 1
-            , Background.color noteBackground
-            , Element.padding 20
-            , Element.width (Element.px 200)
-            , Element.height (Element.px 200)
-            , onMouseDownNoPropagation (StartCardDrag noteID)
-            , onContextMenu (config.clientToBoard >> CardMenu noteID >> OpenMenu)
-            , Element.htmlAttribute <| HA.style "user-select" "none"
-            , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
-            , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
-            , Element.htmlAttribute <| HA.style "-ms-user-select" "none"
-            ]
+            (cardWithID |> viewCardAttributes config)
         <|
-            Element.paragraph [ Element.height Element.fill ]
-                [ Element.text text
-                ]
+            case config.editState of
+                NotEditing ->
+                    card |> viewPlainCard
+
+                EditingCard editCardID editText ->
+                    if noteID /= editCardID then
+                        card |> viewPlainCard
+
+                    else
+                        card |> viewCardBeingEdited
+
+
+viewPlainCard : Card -> Element Msg
+viewPlainCard card =
+    Element.paragraph []
+        [ Element.text <| Card.getText card ]
+
+
+viewCardBeingEdited : Card -> Element Msg
+viewCardBeingEdited card =
+    Element.el [] <|
+        Input.multiline
+            [ Element.width Element.fill
+            , Element.height (Element.px 160)
+            ]
+            { onChange = always NoOp
+            , text = Card.getText card
+            , placeholder = Nothing
+            , spellcheck = True
+            , label = Input.labelHidden <| "the card containing" ++ Card.getText card
+            }
+
+
+viewCardAttributes : ViewConfig -> ( Int, Card ) -> List (Element.Attr () Msg)
+viewCardAttributes config ( id, card ) =
+    [ Border.color noteBorder
+    , Border.width 1
+    , Background.color noteBackground
+    , Element.padding 20
+    , Element.width (Element.px 200)
+    , Element.height (Element.px 200)
+    , onMouseDownNoPropagation (StartCardDrag id)
+    , onContextMenu (config.clientToBoard >> CardMenu id >> OpenMenu)
+    , Element.htmlAttribute <| HA.style "user-select" "none"
+    , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
+    , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
+    , Element.htmlAttribute <| HA.style "-ms-user-select" "none"
+    ]
 
 
 boardMenu : List ( String, Msg )
