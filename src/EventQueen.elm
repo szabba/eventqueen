@@ -12,6 +12,9 @@ import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events as Events
+import EventQueen.Card as Card exposing (Card)
+import EventQueen.MultivalueRegister as MVR
+import EventQueen.Node as Node exposing (Node)
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as HE
@@ -35,7 +38,7 @@ type alias Flags =
 type alias Model =
     { nodeID : NodeID
     , viewModel : ViewModel
-    , notes : Dict Int Note
+    , node : Node Card.Diff Card
     }
 
 
@@ -50,8 +53,8 @@ type Msg
     = NoOp
     | StartBoardDrag
     | DragBoard ( Float, Float )
-    | StartNoteDrag Int
-    | DragNote Int ( Float, Float )
+    | StartCardDrag Int
+    | DragCard Int ( Float, Float )
     | StopDrag
     | OpenMenu ContextMenu
 
@@ -63,7 +66,7 @@ type NodeID
 type DragState
     = NotDragging
     | DraggingBoard
-    | DraggingNote Int
+    | DraggingCard Int
 
 
 type ContextMenu
@@ -91,12 +94,7 @@ init { rawNodeID } =
             , dragState = NotDragging
             , contextMenu = NoMenu
             }
-      , notes =
-            Dict.fromList
-                [ Tuple.pair 0 { offset = ( 0, 0 ), text = "Liberated" }
-                , Tuple.pair 1 { offset = ( 50, 200 ), text = "Marched" }
-                , Tuple.pair 2 { offset = ( 200, 50 ), text = "Forevered" }
-                ]
+      , node = Node.init Card.config { name = "node" }
       }
     , Cmd.none
     )
@@ -109,7 +107,7 @@ view model =
             model |> viewConfigOf
 
         floats =
-            [ model.notes |> viewNotes viewConfig
+            [ Dict.empty |> Dict.insert 0 model.node.state |> viewCards viewConfig
             , model.viewModel.contextMenu
                 |> viewContextMenu
                 |> List.singleton
@@ -136,11 +134,11 @@ viewConfigOf { viewModel } =
     }
 
 
-viewNotes : ViewConfig -> Dict Int Note -> List (Element Msg)
-viewNotes config notes =
-    notes
+viewCards : ViewConfig -> Dict Int Card -> List (Element Msg)
+viewCards config cards =
+    cards
         |> Dict.toList
-        |> List.map (viewNote config)
+        |> List.map (viewCard config)
 
 
 viewContextMenu : ContextMenu -> Element Msg
@@ -160,8 +158,21 @@ viewContextMenu menu =
                 |> withOffset offset
 
 
-viewNote : ViewConfig -> ( Int, Note ) -> Element Msg
-viewNote config ( noteID, { offset, text } ) =
+viewCard : ViewConfig -> ( Int, Card ) -> Element Msg
+viewCard config ( noteID, card ) =
+    let
+        offset =
+            card.position
+                |> MVR.get
+                |> List.head
+                |> Maybe.withDefault ( 0, 0 )
+
+        text =
+            card.text
+                |> MVR.get
+                |> List.head
+                |> Maybe.withDefault "..."
+    in
     withOffset offset <|
         Element.el
             [ Border.color noteBorder
@@ -170,7 +181,7 @@ viewNote config ( noteID, { offset, text } ) =
             , Element.padding 20
             , Element.width (Element.px 200)
             , Element.height (Element.px 200)
-            , onMouseDownNoPropagation (StartNoteDrag noteID)
+            , onMouseDownNoPropagation (StartCardDrag noteID)
             , onContextMenu (config.clientToBoard >> CardMenu noteID >> OpenMenu)
             , Element.htmlAttribute <| HA.style "user-select" "none"
             , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
@@ -288,13 +299,13 @@ update msg ({ viewModel } as model) =
                 |> setViewModel { viewModel | offset = ( x + dx, y + dy ) }
                 |> noCmd
 
-        StartNoteDrag noteID ->
+        StartCardDrag noteID ->
             model
-                |> setViewModel { viewModel | dragState = DraggingNote noteID, contextMenu = NoMenu }
+                |> setViewModel { viewModel | dragState = DraggingCard noteID, contextMenu = NoMenu }
                 |> noCmd
 
-        DragNote noteID offsetDelta ->
-            { model | notes = model.notes |> Dict.update noteID (Maybe.map <| updateOffsetBy offsetDelta) }
+        DragCard noteID offset ->
+            { model | node = model.node |> Node.update Card.config (Card.moveBy offset) }
                 |> noCmd
 
         OpenMenu newMenu ->
@@ -313,23 +324,14 @@ noCmd model =
     ( model, Cmd.none )
 
 
-updateOffsetBy : ( Float, Float ) -> Note -> Note
-updateOffsetBy ( dx, dy ) ({ offset } as note) =
-    let
-        ( x, y ) =
-            offset
-    in
-    { note | offset = ( x + dx, y + dy ) }
-
-
 subscriptions : Model -> Sub Msg
 subscriptions { viewModel } =
     case viewModel.dragState of
         DraggingBoard ->
             drags DragBoard
 
-        DraggingNote noteID ->
-            drags (DragNote noteID)
+        DraggingCard noteID ->
+            drags (DragCard noteID)
 
         NotDragging ->
             Sub.none
