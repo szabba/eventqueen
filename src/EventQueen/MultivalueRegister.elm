@@ -85,7 +85,7 @@ compareEntries compareWith left right =
 
 isOlderThan : Clock -> Entry a -> Bool
 isOlderThan clock entry =
-    Clock.compare ( clock, entry.clock ) == Clock.Chronological
+    Clock.compare ( entry.clock, clock ) == Clock.Chronological
 
 
 isConcurrentTo : Clock -> Entry a -> Bool

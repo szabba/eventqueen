@@ -33,6 +33,14 @@ suite =
                     |> .state
                     |> MVR.get
                     |> Expect.equal [ 1, 2, 3 ]
+        , test "newer values shadow older ones" <|
+            \() ->
+                Node.init config { name = "node" }
+                    |> Node.update config (MVR.set [ 1, 3, 2 ])
+                    |> Node.update config (MVR.set [ 5, 4 ])
+                    |> .state
+                    |> MVR.get
+                    |> Expect.equal [ 4, 5 ]
         , Consistency.isStronglyEventuallyConsistent
             { nodes = 3
             , operation =
