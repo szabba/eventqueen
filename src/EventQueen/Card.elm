@@ -44,11 +44,10 @@ getText card =
         |> Maybe.withDefault ""
 
 
-setText : String -> { name : String } -> Clock -> Card -> Diff
-setText newText name clock card =
-    card.text
-        |> MVR.set [ newText ] name clock
-        |> TextDiff
+setText : String -> Node.Operation Diff Card
+setText newText =
+    MVR.set [ newText ]
+        |> Node.map .text TextDiff
 
 
 getPosition : Card -> ( Float, Float )
@@ -60,20 +59,23 @@ getPosition card =
         |> Maybe.withDefault ( 0, 0 )
 
 
-setPosition : ( Float, Float ) -> { name : String } -> Clock -> Card -> Diff
-setPosition newPos name clock card =
-    card.position
-        |> MVR.set [ newPos ] name clock
-        |> PositionDiff
+setPosition : ( Float, Float ) -> Node.Operation Diff Card
+setPosition newPos =
+    MVR.set [ newPos ]
+        |> Node.map .position PositionDiff
 
 
-moveBy : ( Float, Float ) -> { name : String } -> Clock -> Card -> Diff
-moveBy ( dx, dy ) name clock card =
+moveBy : ( Float, Float ) -> Node.Operation Diff Card
+moveBy ( dx, dy ) =
     let
-        ( x, y ) =
-            card |> getPosition
+        atCard card =
+            let
+                ( x, y ) =
+                    card |> getPosition
+            in
+            setPosition ( x + dx, y + dy )
     in
-    setPosition ( x + dx, y + dy ) name clock card
+    Node.stateOperation atCard
 
 
 patch : Diff -> Card -> Card

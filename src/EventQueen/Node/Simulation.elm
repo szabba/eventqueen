@@ -18,7 +18,7 @@ type Event operation
 
 
 type alias Config operation diff state =
-    { apply : operation -> { name : String } -> Clock -> state -> diff
+    { apply : operation -> Node.Operation diff state
     , node : Node.Config diff state
     }
 

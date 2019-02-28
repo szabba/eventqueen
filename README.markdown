@@ -8,7 +8,6 @@ $ ./node_modules/.bin/elm-live src/EventQueen.elm -- --output=elm.js
 ## Yes
 
 * growing dictionary CRDT
-* improve the CRDT modifier function signatures
 * CRDT state
 * code for syncing multiple clients
 * "fit all" functionality in board menu
@@ -17,6 +16,8 @@ $ ./node_modules/.bin/elm-live src/EventQueen.elm -- --output=elm.js
 * "remove" functionality in note menu
 * "edit" functionality in note menu
 * either "note" or "card" as a name in all places
+* improve tests by using randomized initial states
+* error handling for CRDT operations
 
 ## Later
 
@@ -29,7 +30,7 @@ $ ./node_modules/.bin/elm-live src/EventQueen.elm -- --output=elm.js
 
 ## Maybe Later
 
-* card layers 
+* card layers
 * card labels
 * non-card objects
 
@@ -46,3 +47,4 @@ $ ./node_modules/.bin/elm-live src/EventQueen.elm -- --output=elm.js
 * draggable cards
 * multiple visible cards
 * context menu
+* improve the CRDT modifier function signatures

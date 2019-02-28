@@ -45,8 +45,13 @@ get (MultivalueRegister entries) =
         |> List.map .value
 
 
-set : List a -> { name : String } -> Clock -> MultivalueRegister a -> Diff a
-set values { name } clock _ =
+set : List a -> Node.Operation (Diff a) (MultivalueRegister a)
+set =
+    rawSet >> Node.operation
+
+
+rawSet : List a -> { name : String } -> Clock -> MultivalueRegister a -> Diff a
+rawSet values { name } clock _ =
     ( values, clock |> Clock.tick { node = name } )
 
 

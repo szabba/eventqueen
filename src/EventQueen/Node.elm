@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Node exposing (Change, Config, Node, diff, init, patch, update)
+module EventQueen.Node exposing (Change, Config, Node, Operation, diff, init, map, operation, patch, stateOperation, update)
 
 import Array exposing (Array)
 import EventQueen.Clock as Clock exposing (Clock)
@@ -39,11 +39,11 @@ init config { name } =
     }
 
 
-update : Config diff state -> ({ name : String } -> Clock -> state -> diff) -> Node diff state -> Node diff state
-update config updateFunc node =
+update : Config diff state -> Operation diff state -> Node diff state -> Node diff state
+update config (Operation opFunc) node =
     let
         nextDiff =
-            node.state |> updateFunc { name = node.name } node.clock
+            node.state |> opFunc { name = node.name } node.clock
 
         nextClock =
             node.clock |> Clock.tick { node = node.name }
@@ -109,3 +109,41 @@ patchOne config change node =
 isNextAt : Clock -> Change diff -> Bool
 isNextAt clock { atNode, tick } =
     tick == 1 + (clock |> Clock.ticksOf { node = atNode })
+
+
+type Operation diff state
+    = Operation ({ name : String } -> Clock -> state -> diff)
+
+
+operation : ({ name : String } -> Clock -> state -> diff) -> Operation diff state
+operation op =
+    Operation op
+
+
+stateOperation : (state -> Operation diff state) -> Operation diff state
+stateOperation opAt =
+    Operation <|
+        \name clock state ->
+            let
+                (Operation actualOp) =
+                    opAt state
+            in
+            actualOp name clock state
+
+
+map :
+    (outerState -> innerState)
+    -> (innerDiff -> outerDiff)
+    -> Operation innerDiff innerState
+    -> Operation outerDiff outerState
+map extractState wrapDiff (Operation op) =
+    Operation <| wrapRawOp op extractState wrapDiff
+
+
+wrapRawOp :
+    ({ name : String } -> Clock -> innerState -> innerDiff)
+    -> (outerState -> innerState)
+    -> (innerDiff -> outerDiff)
+    -> ({ name : String } -> Clock -> outerState -> outerDiff)
+wrapRawOp innerOp extractState wrapDiff name clock =
+    extractState >> innerOp name clock >> wrapDiff
