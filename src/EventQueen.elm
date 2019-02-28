@@ -59,6 +59,7 @@ type Msg
     | DragCard Int ( Float, Float )
     | StopDrag
     | OpenMenu ContextMenu
+    | EditText Int String
 
 
 type NodeID
@@ -183,7 +184,7 @@ viewCard config (( noteID, card ) as cardWithID) =
                         card |> viewPlainCard
 
                     else
-                        card |> viewCardBeingEdited
+                        viewCardBeingEdited editCardID editText
 
 
 viewPlainCard : Card -> Element Msg
@@ -192,18 +193,18 @@ viewPlainCard card =
         [ Element.text <| Card.getText card ]
 
 
-viewCardBeingEdited : Card -> Element Msg
-viewCardBeingEdited card =
+viewCardBeingEdited : Int -> String -> Element Msg
+viewCardBeingEdited id text =
     Element.el [] <|
         Input.multiline
             [ Element.width Element.fill
             , Element.height (Element.px 160)
             ]
-            { onChange = always NoOp
-            , text = Card.getText card
+            { onChange = EditText id
+            , text = text
             , placeholder = Nothing
             , spellcheck = True
-            , label = Input.labelHidden <| "the card containing" ++ Card.getText card
+            , label = Input.labelHidden <| "the card containing" ++ text
             }
 
 
@@ -342,6 +343,24 @@ update msg ({ viewModel } as model) =
             model
                 |> setViewModel { viewModel | contextMenu = newMenu }
                 |> noCmd
+
+        EditText id newText ->
+            let
+                editState =
+                    EditingCard id newText
+            in
+            model
+                |> setViewModel { viewModel | editState = editState }
+                |> noCmd
+
+
+updateNode : Node.Operation Card.Diff Card -> Model -> Model
+updateNode op model =
+    let
+        nextNode =
+            model.node |> Node.update Card.config op
+    in
+    { model | node = nextNode }
 
 
 setViewModel : ViewModel -> Model -> Model
