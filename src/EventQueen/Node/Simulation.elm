@@ -18,7 +18,7 @@ type Event operation
 
 
 type alias Config operation diff state =
-    { apply : operation -> Node.Operation diff state
+    { apply : operation -> state -> Node.Operation diff state
     , node : Node.Config diff state
     }
 
@@ -51,9 +51,13 @@ runOnce config evt system =
 apply : Config operation diff state -> { atNode : String, operation : operation } -> Dict String (Node diff state) -> Dict String (Node diff state)
 apply config { atNode, operation } system =
     let
+        updateExisting node =
+            node
+                |> Node.update config.node (config.apply operation node.state)
+
         updateNode =
             Maybe.withDefault (Node.init config.node { name = atNode })
-                >> Node.update config.node (config.apply operation)
+                >> updateExisting
                 >> Just
     in
     system |> Dict.update atNode updateNode

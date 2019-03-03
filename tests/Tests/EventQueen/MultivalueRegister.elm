@@ -1,12 +1,9 @@
 module Tests.EventQueen.MultivalueRegister exposing (suite)
 
-import Dict
-import EventQueen.Clock as Clock exposing (Clock)
 import EventQueen.MultivalueRegister as MVR exposing (Diff, MVR)
 import EventQueen.Node as Node
-import EventQueen.Node.Simulation as Simulation
 import Expect exposing (Expectation)
-import Fuzz exposing (Fuzzer, int, list, string)
+import Fuzz exposing (Fuzzer)
 import Test exposing (..)
 import Tests.EventQueen.Consistency as Consistency
 
@@ -47,7 +44,7 @@ suite =
                 Fuzz.map Set <| Fuzz.list Fuzz.int
             , simulation =
                 { node = config
-                , apply = \(Set values) -> MVR.set values
+                , apply = \(Set values) _ -> MVR.set values
                 }
             }
         ]

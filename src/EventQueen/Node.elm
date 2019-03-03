@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Node exposing (Change, Config, Node, Operation, diff, init, map, operation, patch, stateOperation, update)
+module EventQueen.Node exposing (Change, Config, Node, Operation, diff, init, map, operation, patch, runOperation, stateOperation, update)
 
 import Array exposing (Array)
 import EventQueen.Clock as Clock exposing (Clock)
@@ -113,6 +113,11 @@ isNextAt clock { atNode, tick } =
 
 type Operation diff state
     = Operation ({ name : String } -> Clock -> state -> diff)
+
+
+runOperation : { name : String } -> Clock -> Operation diff state -> state -> diff
+runOperation nodeID clock (Operation op) state =
+    op nodeID clock state
 
 
 operation : ({ name : String } -> Clock -> state -> diff) -> Operation diff state

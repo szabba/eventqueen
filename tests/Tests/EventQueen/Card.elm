@@ -17,22 +17,8 @@ suite =
     describe "EventQueen.Card"
         [ Consistency.isStronglyEventuallyConsistent
             { nodes = 3
-            , operation =
-                Fuzz.oneOf
-                    [ Fuzz.map SetText Fuzz.string
-                    , Fuzz.map SetPosition <| Fuzz.map2 Tuple.pair Fuzz.float Fuzz.float
-                    ]
-            , simulation =
-                { node = Card.config
-                , apply =
-                    \op ->
-                        case op of
-                            SetText text ->
-                                Card.setText text
-
-                            SetPosition pos ->
-                                Card.setPosition pos
-                }
+            , operation = operation
+            , simulation = config
             }
         ]
 
@@ -40,3 +26,25 @@ suite =
 type Operation
     = SetText String
     | SetPosition ( Float, Float )
+
+
+operation : Fuzzer Operation
+operation =
+    Fuzz.oneOf
+        [ Fuzz.map SetText Fuzz.string
+        , Fuzz.map SetPosition <| Fuzz.map2 Tuple.pair Fuzz.float Fuzz.float
+        ]
+
+
+config : Simulation.Config Operation Card.Diff Card
+config =
+    { node = Card.config
+    , apply =
+        \op _ ->
+            case op of
+                SetText text ->
+                    Card.setText text
+
+                SetPosition pos ->
+                    Card.setPosition pos
+    }
