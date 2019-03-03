@@ -39,9 +39,11 @@ suite =
                     |> MVR.get
                     |> Expect.equal [ 4, 5 ]
         , Consistency.isStronglyEventuallyConsistent
-            { nodes = 3
-            , operation =
-                Fuzz.map Set <| Fuzz.list Fuzz.int
+            { history =
+                { nodes = 3
+                , operation =
+                    Fuzz.map Set <| Fuzz.list Fuzz.int
+                }
             , simulation =
                 { node = config
                 , apply = \(Set values) _ -> MVR.set values

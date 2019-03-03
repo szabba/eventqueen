@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Node.Simulation exposing (Config, Event(..), ensureFullSync, run)
+module EventQueen.Node.Simulation exposing (Config, Event(..), run)
 
 import Array
 import Dict exposing (Dict)
@@ -27,15 +27,6 @@ run : Config operation diff state -> List (Event operation) -> Dict String (Node
 run config events =
     events
         |> List.foldl (\event nodes -> nodes |> runOnce config event) Dict.empty
-
-
-ensureFullSync : List (Event operation) -> List (Event operation)
-ensureFullSync events =
-    let
-        nodeNames =
-            events |> historyNodeNames
-    in
-    events ++ gather nodeNames ++ spread nodeNames
 
 
 runOnce : Config operation diff state -> Event operation -> Dict String (Node diff state) -> Dict String (Node diff state)
@@ -85,38 +76,3 @@ syncFromTo config { fromNode, toNode } system =
                 |> Node.patch config.node missingChanges
     in
     system |> Dict.insert toNode updatedNode
-
-
-gather : List String -> List (Event noOps)
-gather nodeNames =
-    case nodeNames of
-        first :: rest ->
-            rest |> List.map (\other -> Sync { fromNode = other, toNode = first })
-
-        [] ->
-            []
-
-
-spread : List String -> List (Event noOps)
-spread nodeNames =
-    case nodeNames of
-        first :: rest ->
-            rest |> List.map (\other -> Sync { fromNode = first, toNode = other })
-
-        [] ->
-            []
-
-
-historyNodeNames : List (Event operation) -> List String
-historyNodeNames =
-    List.concatMap eventNodeNames >> Set.fromList >> Set.toList
-
-
-eventNodeNames : Event operation -> List String
-eventNodeNames evt =
-    case evt of
-        Apply { atNode } ->
-            [ atNode ]
-
-        Sync { fromNode, toNode } ->
-            [ fromNode, toNode ]

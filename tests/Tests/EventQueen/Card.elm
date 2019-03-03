@@ -16,8 +16,10 @@ suite : Test
 suite =
     describe "EventQueen.Card"
         [ Consistency.isStronglyEventuallyConsistent
-            { nodes = 3
-            , operation = operation
+            { history =
+                { nodes = 3
+                , operation = operation
+                }
             , simulation = config
             }
         ]

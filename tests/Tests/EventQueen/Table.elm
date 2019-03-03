@@ -36,8 +36,10 @@ suite =
                     |> List.map Tuple.second
                     |> Expect.equal (List.repeat times MVR.init)
         , Consistency.isStronglyEventuallyConsistent
-            { nodes = 3
-            , operation = operation
+            { history =
+                { nodes = 3
+                , operation = operation
+                }
             , simulation = config
             }
         ]

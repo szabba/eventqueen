@@ -5,12 +5,12 @@ import EventQueen.Node.Simulation as Simulation
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
+import Tests.EventQueen.Simulation.History as History
 
 
 type alias Config operation diff state =
     { simulation : Simulation.Config operation diff state
-    , nodes : Int
-    , operation : Fuzzer operation
+    , history : History.Config operation
     }
 
 
@@ -27,8 +27,8 @@ isStronglyEventuallyConsistent config =
 
 history : Config operation diff state -> Fuzzer (List (Simulation.Event operation))
 history config =
-    Fuzz.list (event config)
-        |> Fuzz.map Simulation.ensureFullSync
+    History.fuzz config.history
+        |> Fuzz.map History.ensureFullSync
 
 
 event : { a | nodes : Int, operation : Fuzzer operation } -> Fuzzer (Simulation.Event operation)
