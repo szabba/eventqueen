@@ -41,6 +41,8 @@ init =
     Table { lastIDs = Clock.zero, entries = Dict.empty }
 
 
+-- QUERIES
+
 lastID : { node : String } -> Table value -> Maybe ID
 lastID nodeID (Table { lastIDs }) =
     lastIDs
@@ -55,6 +57,9 @@ toList (Table { entries }) =
     entries
         |> Dict.toList
         |> List.map (Tuple.mapFirst ID)
+
+
+-- OPERATIONS
 
 
 noop : Node.Operation (Diff diff) (Table value)
@@ -87,6 +92,9 @@ update id entryOperation =
                 |> Maybe.map (Node.runOperation nodeID clock entryOperation)
                 |> Maybe.map (Update id)
                 |> Maybe.withDefault NoOp
+
+
+-- PATCH
 
 
 patch : Node.Config diff value -> Diff diff -> Table value -> Table value

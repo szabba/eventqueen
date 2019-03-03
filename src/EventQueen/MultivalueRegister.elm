@@ -39,10 +39,18 @@ init =
     MultivalueRegister []
 
 
+
+-- QUERIES
+
+
 get : MultivalueRegister a -> List a
 get (MultivalueRegister entries) =
     entries
         |> List.map .value
+
+
+
+-- OPERATIONS
 
 
 set : List a -> Node.Operation (Diff a) (MultivalueRegister a)
@@ -53,6 +61,10 @@ set =
 rawSet : List a -> { name : String } -> Clock -> MultivalueRegister a -> Diff a
 rawSet values { name } clock _ =
     ( values, clock |> Clock.tick { node = name } )
+
+
+
+-- PATCH
 
 
 patch : (a -> a -> Order) -> Diff a -> MultivalueRegister a -> MultivalueRegister a

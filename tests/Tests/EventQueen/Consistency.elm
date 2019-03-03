@@ -31,30 +31,6 @@ history config =
         |> Fuzz.map History.ensureFullSync
 
 
-event : { a | nodes : Int, operation : Fuzzer operation } -> Fuzzer (Simulation.Event operation)
-event { nodes, operation } =
-    Fuzz.oneOf
-        [ Fuzz.map2 applyEvent (Fuzz.intRange 0 nodes) operation
-        , Fuzz.map2 syncEvent (Fuzz.intRange 0 nodes) (Fuzz.intRange 0 nodes)
-        ]
-
-
-applyEvent : Int -> operation -> Simulation.Event operation
-applyEvent nodeNo op =
-    Simulation.Apply
-        { atNode = String.fromInt nodeNo
-        , operation = op
-        }
-
-
-syncEvent : Int -> Int -> Simulation.Event operation
-syncEvent fromNodeNo toNodeNo =
-    Simulation.Sync
-        { fromNode = String.fromInt fromNodeNo
-        , toNode = String.fromInt toNodeNo
-        }
-
-
 allEqual : List a -> Expectation
 allEqual vals =
     let

@@ -36,6 +36,25 @@ type alias Flags =
     { rawNodeID : String }
 
 
+init : Flags -> ( Model, Cmd Msg )
+init { rawNodeID } =
+    ( { nodeID = NodeID rawNodeID
+      , viewModel =
+            { offset = ( 0, 0 )
+            , dragState = NotDragging
+            , editState = EditingCard 0 "..."
+            , contextMenu = NoMenu
+            }
+      , node = Node.init Card.config { name = "node" }
+      }
+    , Cmd.none
+    )
+
+
+
+-- MODEL
+
+
 type alias Model =
     { nodeID : NodeID
     , viewModel : ViewModel
@@ -49,17 +68,6 @@ type alias ViewModel =
     , editState : EditState
     , contextMenu : ContextMenu
     }
-
-
-type Msg
-    = NoOp
-    | StartBoardDrag
-    | DragBoard ( Float, Float )
-    | StartCardDrag Int
-    | DragCard Int ( Float, Float )
-    | StopDrag
-    | OpenMenu ContextMenu
-    | EditText Int String
 
 
 type NodeID
@@ -95,19 +103,8 @@ type alias ViewConfig =
     }
 
 
-init : Flags -> ( Model, Cmd Msg )
-init { rawNodeID } =
-    ( { nodeID = NodeID rawNodeID
-      , viewModel =
-            { offset = ( 0, 0 )
-            , dragState = NotDragging
-            , editState = EditingCard 0 "..."
-            , contextMenu = NoMenu
-            }
-      , node = Node.init Card.config { name = "node" }
-      }
-    , Cmd.none
-    )
+
+-- VIEW
 
 
 view : Model -> Browser.Document Msg
@@ -200,7 +197,7 @@ viewCardBeingEdited id text =
             [ Element.width Element.fill
             , Element.height (Element.px 160)
             ]
-            { onChange = EditText id
+            { onChange = TextEdited id
             , text = text
             , placeholder = Nothing
             , spellcheck = True
@@ -216,8 +213,8 @@ viewCardAttributes config ( id, card ) =
     , Element.padding 20
     , Element.width (Element.px 200)
     , Element.height (Element.px 200)
-    , onMouseDownNoPropagation (StartCardDrag id)
-    , onContextMenu (config.clientToBoard >> CardMenu id >> OpenMenu)
+    , onMouseDownNoPropagation (CardDragStarted id)
+    , onContextMenu (config.clientToBoard >> CardMenu id >> MenuOpened)
     , Element.htmlAttribute <| HA.style "user-select" "none"
     , Element.htmlAttribute <| HA.style "-moz-user-select" "none"
     , Element.htmlAttribute <| HA.style "-webkit-user-select" "none"
@@ -274,10 +271,10 @@ onBoard config ({ offset } as viewModel) =
             [ Element.clip
             , Element.width Element.fill
             , Element.height Element.fill
-            , Events.onMouseDown StartBoardDrag
-            , Events.onMouseUp StopDrag
+            , Events.onMouseDown BoardDragStarted
+            , Events.onMouseUp DragStopped
             , Background.color board
-            , onContextMenu (config.clientToBoard >> BoardMenu >> OpenMenu)
+            , onContextMenu (config.clientToBoard >> BoardMenu >> MenuOpened)
             ]
         << withOffset offset
 
@@ -305,23 +302,38 @@ board =
     Element.rgb255 191 209 177
 
 
+
+-- UPDATE
+
+
+type Msg
+    = NoOp
+    | BoardDragStarted
+    | BoardDraggedBy ( Float, Float )
+    | CardDragStarted Int
+    | CardDraggedBy Int ( Float, Float )
+    | DragStopped
+    | MenuOpened ContextMenu
+    | TextEdited Int String
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg ({ viewModel } as model) =
     case msg of
         NoOp ->
             model |> noCmd
 
-        StopDrag ->
+        DragStopped ->
             model
                 |> setViewModel { viewModel | dragState = NotDragging }
                 |> noCmd
 
-        StartBoardDrag ->
+        BoardDragStarted ->
             model
                 |> setViewModel { viewModel | dragState = DraggingBoard, contextMenu = NoMenu }
                 |> noCmd
 
-        DragBoard ( dx, dy ) ->
+        BoardDraggedBy ( dx, dy ) ->
             let
                 ( x, y ) =
                     viewModel.offset
@@ -330,21 +342,21 @@ update msg ({ viewModel } as model) =
                 |> setViewModel { viewModel | offset = ( x + dx, y + dy ) }
                 |> noCmd
 
-        StartCardDrag noteID ->
+        CardDragStarted noteID ->
             model
                 |> setViewModel { viewModel | dragState = DraggingCard noteID, contextMenu = NoMenu }
                 |> noCmd
 
-        DragCard noteID offset ->
+        CardDraggedBy noteID offset ->
             { model | node = model.node |> Node.update Card.config (Card.moveBy offset) }
                 |> noCmd
 
-        OpenMenu newMenu ->
+        MenuOpened newMenu ->
             model
                 |> setViewModel { viewModel | contextMenu = newMenu }
                 |> noCmd
 
-        EditText id newText ->
+        TextEdited id newText ->
             let
                 editState =
                     EditingCard id newText
@@ -373,17 +385,25 @@ noCmd model =
     ( model, Cmd.none )
 
 
+
+-- SUBSCRIPTIONS
+
+
 subscriptions : Model -> Sub Msg
 subscriptions { viewModel } =
     case viewModel.dragState of
         DraggingBoard ->
-            drags DragBoard
+            drags BoardDraggedBy
 
         DraggingCard noteID ->
-            drags (DragCard noteID)
+            drags (CardDraggedBy noteID)
 
         NotDragging ->
             Sub.none
+
+
+
+-- EVENTS
 
 
 onContextMenu : (( Float, Float ) -> msg) -> Element.Attribute msg
@@ -408,13 +428,6 @@ onMouseDownNoPropagation msg =
         |> Element.htmlAttribute
 
 
-drags : (( Float, Float ) -> msg) -> Sub msg
-drags toMsg =
-    mouseMoved
-        |> Decode.map toMsg
-        |> Browser.Events.onMouseMove
-
-
 mouseMoved : Decoder ( Float, Float )
 mouseMoved =
     Decode.map2 Tuple.pair
@@ -427,3 +440,10 @@ mouseAt =
     Decode.map2 Tuple.pair
         (Decode.field "clientX" Decode.float)
         (Decode.field "clientY" Decode.float)
+
+
+drags : (( Float, Float ) -> msg) -> Sub msg
+drags toMsg =
+    mouseMoved
+        |> Decode.map toMsg
+        |> Browser.Events.onMouseMove

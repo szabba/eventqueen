@@ -5,7 +5,6 @@
 
 module EventQueen.Card exposing (Card, Diff, config, getPosition, getText, moveBy, setPosition, setText)
 
-import EventQueen.Clock exposing (Clock)
 import EventQueen.MultivalueRegister as MVR exposing (MVR)
 import EventQueen.Node as Node exposing (Config)
 
@@ -35,6 +34,10 @@ init =
     }
 
 
+
+-- QUERIES
+
+
 getText : Card -> String
 getText card =
     card.text
@@ -44,12 +47,6 @@ getText card =
         |> Maybe.withDefault ""
 
 
-setText : String -> Node.Operation Diff Card
-setText newText =
-    MVR.set [ newText ]
-        |> Node.map .text TextDiff
-
-
 getPosition : Card -> ( Float, Float )
 getPosition card =
     card.position
@@ -57,6 +54,16 @@ getPosition card =
         |> List.reverse
         |> List.head
         |> Maybe.withDefault ( 0, 0 )
+
+
+
+-- OPERATIONS
+
+
+setText : String -> Node.Operation Diff Card
+setText newText =
+    MVR.set [ newText ]
+        |> Node.map .text TextDiff
 
 
 setPosition : ( Float, Float ) -> Node.Operation Diff Card
@@ -78,6 +85,10 @@ moveBy ( dx, dy ) =
     Node.stateOperation atCard
 
 
+
+-- PATCH
+
+
 patch : Diff -> Card -> Card
 patch diff card =
     case diff of
@@ -86,6 +97,10 @@ patch diff card =
 
         PositionDiff posDiff ->
             { card | position = card.position |> position.patch posDiff }
+
+
+
+-- CHILD CONFIGS
 
 
 text : Config (MVR.Diff String) (MVR String)
