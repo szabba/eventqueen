@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Table exposing (Diff, ID, Table, add, config, init, lastID, noop, remove, toList, update)
+module EventQueen.Table exposing (Diff, ID, Table, add, config, get, init, lastID, noop, remove, toList, update)
 
 import Dict exposing (Dict)
 import EventQueen.Clock as Clock exposing (Clock)
@@ -41,7 +41,9 @@ init =
     Table { lastIDs = Clock.zero, entries = Dict.empty }
 
 
+
 -- QUERIES
+
 
 lastID : { node : String } -> Table value -> Maybe ID
 lastID nodeID (Table { lastIDs }) =
@@ -52,11 +54,17 @@ lastID nodeID (Table { lastIDs }) =
         |> Maybe.map (Tuple.pair nodeID.node >> ID)
 
 
+get : ID -> Table value -> Maybe value
+get (ID rawID) (Table { entries }) =
+    entries |> Dict.get rawID
+
+
 toList : Table value -> List ( ID, value )
 toList (Table { entries }) =
     entries
         |> Dict.toList
         |> List.map (Tuple.mapFirst ID)
+
 
 
 -- OPERATIONS
@@ -78,11 +86,6 @@ remove id =
     Node.operation <| \_ _ _ -> Remove id
 
 
-get : ID -> Table value -> Maybe value
-get (ID rawID) (Table { entries }) =
-    entries |> Dict.get rawID
-
-
 update : ID -> Node.Operation diff value -> Node.Operation (Diff diff) (Table value)
 update id entryOperation =
     Node.operation <|
@@ -92,6 +95,7 @@ update id entryOperation =
                 |> Maybe.map (Node.runOperation nodeID clock entryOperation)
                 |> Maybe.map (Update id)
                 |> Maybe.withDefault NoOp
+
 
 
 -- PATCH

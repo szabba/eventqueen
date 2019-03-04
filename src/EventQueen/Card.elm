@@ -63,13 +63,13 @@ getPosition card =
 setText : String -> Node.Operation Diff Card
 setText newText =
     MVR.set [ newText ]
-        |> Node.map .text TextDiff
+        |> Node.focus .text TextDiff
 
 
 setPosition : ( Float, Float ) -> Node.Operation Diff Card
 setPosition newPos =
     MVR.set [ newPos ]
-        |> Node.map .position PositionDiff
+        |> Node.focus .position PositionDiff
 
 
 moveBy : ( Float, Float ) -> Node.Operation Diff Card

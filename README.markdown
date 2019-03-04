@@ -7,6 +7,7 @@ $ ./node_modules/.bin/elm-live src/EventQueen.elm -- --output=elm.js
 
 ## Yes
 
+* helper for testing resolution of concurrent modifications
 * wrapper type for node names
 * ~~growing dictionary~~ table-like CRDT
 * code for syncing multiple clients

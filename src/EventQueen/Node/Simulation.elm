@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Node.Simulation exposing (Config, Event(..), run)
+module EventQueen.Node.Simulation exposing (Config, Event(..), run, runFromState, syncFrom)
 
 import Array
 import Dict exposing (Dict)
@@ -25,8 +25,13 @@ type alias Config operation diff state =
 
 run : Config operation diff state -> List (Event operation) -> Dict String (Node diff state)
 run config events =
+    Dict.empty |> runFromState config events
+
+
+runFromState : Config operation diff state -> List (Event operation) -> Dict String (Node diff state) -> Dict String (Node diff state)
+runFromState config events startNodes =
     events
-        |> List.foldl (\event nodes -> nodes |> runOnce config event) Dict.empty
+        |> List.foldl (\event nodes -> nodes |> runOnce config event) startNodes
 
 
 runOnce : Config operation diff state -> Event operation -> Dict String (Node diff state) -> Dict String (Node diff state)
@@ -76,3 +81,12 @@ syncFromTo config { fromNode, toNode } system =
                 |> Node.patch config.node missingChanges
     in
     system |> Dict.insert toNode updatedNode
+
+
+syncFrom : Node.Config diff state -> Node diff state -> Node diff state -> Node diff state
+syncFrom config from to =
+    let
+        missingChanges =
+            from |> Node.diff to.clock
+    in
+    to |> Node.patch config missingChanges

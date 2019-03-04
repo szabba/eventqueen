@@ -1,14 +1,24 @@
 module Tests.EventQueen.Table exposing (suite)
 
 import EventQueen.MultivalueRegister as MVR exposing (MVR)
-import EventQueen.Node as Node
+import EventQueen.Node as Node exposing (Node)
 import EventQueen.Node.Simulation as Simulation
 import EventQueen.Table as Table exposing (Table)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Maybe.Extra as Maybe
+import Result.Extra as Result
 import Test exposing (..)
 import Tests.EventQueen.Consistency as Consistency
+import Tests.EventQueen.Simulation.History as History
+
+
+type alias State =
+    Table (MVR Int)
+
+
+type alias Diff =
+    Table.Diff (MVR.Diff Int)
 
 
 suite : Test
@@ -35,6 +45,96 @@ suite =
                     |> Table.toList
                     |> List.map Tuple.second
                     |> Expect.equal (List.repeat times MVR.init)
+        , fuzz randomNode "a freshly added entry has the initial value" <|
+            \startNode ->
+                let
+                    withEntry =
+                        startNode
+                            |> Node.update config.node Table.add
+                            |> .state
+                in
+                withEntry
+                    |> Table.lastID { node = startNode.name }
+                    |> Result.fromMaybe "failed to get the last ID added"
+                    |> Result.andThen
+                        (\id ->
+                            withEntry
+                                |> Table.get id
+                                |> Result.fromMaybe "failed to get the last entry"
+                        )
+                    |> Result.map (Expect.equal MVR.init)
+                    |> Result.extract Expect.fail
+        , fuzz randomNode "remove shrinks a non-empty table" <|
+            \startNode ->
+                let
+                    withEntry =
+                        startNode |> Node.update config.node Table.add
+                in
+                withEntry.state
+                    |> Table.lastID { node = startNode.name }
+                    |> Result.fromMaybe "failed to get the last ID added"
+                    |> Result.map
+                        (\id ->
+                            withEntry
+                                |> Node.update config.node (Table.remove id)
+                                |> .state
+                                |> Table.get id
+                        )
+                    |> Result.map (Expect.equal Nothing)
+                    |> Result.extract Expect.fail
+        , fuzz randomNode "update modifies the entry mentioned" <|
+            \startNode ->
+                let
+                    withEntry =
+                        startNode |> Node.update config.node Table.add
+                in
+                withEntry.state
+                    |> Table.lastID { node = startNode.name }
+                    |> Result.fromMaybe "failed to get the last ID added"
+                    |> Result.andThen
+                        (\id ->
+                            withEntry
+                                |> Node.update config.node (Table.update id <| MVR.set [ 1, 2, 3 ])
+                                |> .state
+                                |> Table.get id
+                                |> Result.fromMaybe "failed to get the last entry"
+                                |> Result.map MVR.get
+                        )
+                    |> Result.map (Expect.equal [ 1, 2, 3 ])
+                    |> Result.extract Expect.fail
+        , fuzz randomNode "a later update does not invalidate a removal" <|
+            \startNode ->
+                let
+                    withEntry =
+                        startNode |> Node.update config.node Table.add
+                in
+                withEntry.state
+                    |> Table.lastID { node = startNode.name }
+                    |> Result.fromMaybe "failed to get the last ID added"
+                    |> Result.map
+                        (\id ->
+                            withEntry
+                                |> Node.update config.node (Table.remove id)
+                                |> Node.update config.node (Table.update id <| MVR.set [ 1, 2, 3 ])
+                                |> .state
+                                |> Table.get id
+                        )
+                    |> Result.map (Expect.equal Nothing)
+                    |> Result.extract Expect.fail
+        , Consistency.concurrently "update wins with concurrent removal"
+            { history =
+                { nodes = 3
+                , operation = operation
+                }
+            , simulation = config
+            }
+            (\{ root } ->
+                { atRoot = addOne >> Ok
+                , atLeft = removeLast { from = root }
+                , atRight = updateLast { from = root } [ 1, 2, 3 ]
+                , expectMerge = lastValue { from = root } [ 1, 2, 3 ]
+                }
+            )
         , Consistency.isStronglyEventuallyConsistent
             { history =
                 { nodes = 3
@@ -43,6 +143,55 @@ suite =
             , simulation = config
             }
         ]
+
+
+lastValue : { from : String } -> List Int -> Node Diff State -> Expectation
+lastValue { from } expected node =
+    node.state
+        |> Table.lastID { node = from }
+        |> Result.fromMaybe "no last ID to assert on"
+        |> Result.map
+            (\id ->
+                node.state
+                    |> Table.get id
+                    |> Maybe.map MVR.get
+                    |> Expect.equal (Just expected)
+            )
+        |> Result.extract Expect.fail
+
+
+addOne : Node Diff State -> Node Diff State
+addOne node =
+    node |> Node.update config.node Table.add
+
+
+removeLast : { from : String } -> Node Diff State -> Result String (Node Diff State)
+removeLast { from } node =
+    node.state
+        |> Table.lastID { node = from }
+        |> Result.fromMaybe "no last ID to remove"
+        |> Result.map (\id -> node |> Node.update config.node (Table.remove id))
+
+
+updateLast : { from : String } -> List Int -> Node Diff State -> Result String (Node Diff State)
+updateLast { from } newValues node =
+    node.state
+        |> Table.lastID { node = from }
+        |> Result.fromMaybe "no last ID to update"
+        |> Result.map (\id -> node |> Node.update config.node (Table.update id (MVR.set newValues)))
+
+
+pending : Expectation
+pending =
+    Expect.fail "TODO"
+
+
+randomNode =
+    History.fuzzNode
+        { nodes = 3
+        , operation = operation
+        }
+        config
 
 
 repeat : Int -> (a -> a) -> (a -> a)

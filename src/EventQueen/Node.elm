@@ -3,7 +3,7 @@
 --   file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-module EventQueen.Node exposing (Change, Config, Node, Operation, diff, init, map, operation, patch, runOperation, stateOperation, update)
+module EventQueen.Node exposing (Change, Config, Node, Operation, diff, focus, init, operation, patch, runOperation, stateOperation, update)
 
 import Array exposing (Array)
 import EventQueen.Clock as Clock exposing (Clock)
@@ -136,12 +136,12 @@ stateOperation opAt =
             actualOp name clock state
 
 
-map :
+focus :
     (outerState -> innerState)
     -> (innerDiff -> outerDiff)
     -> Operation innerDiff innerState
     -> Operation outerDiff outerState
-map extractState wrapDiff (Operation op) =
+focus extractState wrapDiff (Operation op) =
     Operation <| wrapRawOp op extractState wrapDiff
 
 
